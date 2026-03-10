@@ -30,20 +30,22 @@ pipeline {
             }
             steps {
                 sh '''
-                    echo "Testing stage..."
+                    echo "Test stage"
                     ls build/index.html
                     npm run test
                     serve -s build --listen 3000 & 
                     sleep 10
-                    npx playwright test --reporter=html --list   
-
+                    npx playwright test --reporter=html --list    
                 '''
             }
+
             post {
                 always {
-                    junit 'jest-results/junit.xml'
+                    junit 'test-results/junit.xml'
+                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, icon: '', keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright Local', reportTitles: '', useWrapperFileDirectly: true])
                 }
             }
+
         }
 
         stage('deploy staging') {
