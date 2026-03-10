@@ -4,7 +4,7 @@ pipeline {
         stage('aws') {
             agent {
                 docker {
-                    image 'dhi.io/awscli:2'
+                    image 'amazon/aws-cli:latest'
                 }
             }
             steps {
