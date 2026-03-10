@@ -10,7 +10,7 @@ pipeline {
             }
             steps {
                 sh'''
-                    aws --verion
+                    aws --version
                 '''
             }
         }
