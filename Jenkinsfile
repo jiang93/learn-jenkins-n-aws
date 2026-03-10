@@ -1,23 +1,6 @@
 pipeline {
     agent any
     stages {
-        stage('aws') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:latest'
-                    args '--entrypoint=""'
-                }
-            }
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'amzn4814_access', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
-                    sh'''
-                        aws --version
-                        aws s3 ls
-                    '''
-                }
-            }
-        }
-
         stage('build') {
             agent {
                 docker {
@@ -47,8 +30,19 @@ pipeline {
             }
             steps {
                 sh '''
-                echo "Test stage..." 
+                    echo "Testing stage..."
+                    ls build/index.html
+                    npm run test
+                    serve -s build --listen 3000 & 
+                    sleep 10
+                    npx playwright test --reporter=html --list   
+
                 '''
+            }
+            post {
+                always {
+                    junit 'jest-results/junit.xml'
+                }
             }
         }
 
@@ -61,7 +55,7 @@ pipeline {
             }
             steps {
                 sh '''
-                    echo "Deploying to staging site..."                   
+                    echo "Deploying to staging site..."           
                 '''
 
             }
@@ -71,6 +65,27 @@ pipeline {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     input message: 'Do you wish to deploy to production?', ok: 'Yes, I am sure!'
+                }
+            }
+        }
+
+        stage('aws') {
+            agent {
+                docker {
+                    image 'amazon/aws-cli:latest'
+                    reuseNode true
+                    args '--entrypoint=""'
+                }
+            }
+            environment {
+                AWS_S3_BUCKET = 'amzn4184-jenkins-s3'
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'amzn4814_access', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                    sh'''
+                        aws --version
+                        aws s3 sync . s3://$AWS_S3_BUCKET
+                    '''
                 }
             }
         }
