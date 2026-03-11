@@ -131,6 +131,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'amzn4814_access', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
                     sh'''
                         aws --version
+                        sed -i "s/#IMAGE_NAME#/$REACT_APP_VERSION/g" aws\task-defintion-prod.json
                         LATEST_TASK_DEF_REVISION=$(aws ecs register-task-definition --cli-input-json file://aws/task-defintion-prod.json > jq '.taskDefinition.revision')
                         aws ecs update-service --cluster $AWS_ECS_CLUSTER --service $AWS_ECS_SERVICE --task-definition $AWS_ECS_TASK_DEFINTION:$LATEST_TASK_DEF_REVISION
                         aws ecs wait services-stable --cluster $AWS_ECS_CLUSTER --services $AWS_ECS_SERVICE
