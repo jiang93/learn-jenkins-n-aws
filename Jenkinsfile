@@ -1,5 +1,14 @@
 pipeline {
     agent any
+    environment {
+        REACT_APP_VERSION = "1.0.$BUILD_ID"
+        APP_NAME = 'learnJenkinsApp'
+        AWS_DEFAULT_REGION = 'ap-southeast-1'
+        AWS_ECS_CLUSTER = 'LearnJenkinsApp-Cluster-Prod'
+        AWS_ECS_SERVICE = 'LearnJenkinsApp-Service-Prod'
+        AWS_ECS_TASK_DEFINTION = 'LearnJenkinsApp-TaskDefinition-Prod'
+        AWS_ECR_ENDPOINT = 'XXXX.XXXX.XXX.amazonaws.com'
+    }
     stages {
         stage('build') {
             agent {
@@ -45,7 +54,6 @@ pipeline {
                     publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, icon: '', keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright Local', reportTitles: '', useWrapperFileDirectly: true])
                 }
             }
-
         }
 
         stage('deploy staging') {
@@ -71,10 +79,10 @@ pipeline {
             }
         }
 
-        stage('aws') {
+        stage('aws s3') {
             agent {
                 docker {
-                    image 'amazon/aws-cli:latest'
+                    image 'myawscli'
                     reuseNode true
                     args '--entrypoint=""'
                 }
@@ -92,6 +100,46 @@ pipeline {
             }
         }
 
+        stage('aws ecr') {
+            agent {
+                docker {
+                    image 'myawscli'
+                    reuseNode true
+                    args '-u root -v /var/run/docker.dock:/var/run/docker.sock --entrypoint=""'
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'amzn4814_access', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                sh'''
+                    docker build -t $AWS_ECR_ENDPOINT/$APP_NAME:$REACT_APP_VERSION
+                    aws ecr get-login-password | docker login --username AWS --password-stdin $AWS_ECR_ENDPOINT
+                    docker push $AWS_ECR_ENDPOINT/$APP_NAME:$REACT_APP_VERSION
+                '''
+                }
+            }
+        }
+
+        stage('aws ecs') {
+            agent {
+                docker {
+                    image 'amyawscli'
+                    reuseNode true
+                    args '-u root --entrypoint=""'
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'amzn4814_access', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                    sh'''
+                        aws --version
+                        LATEST_TASK_DEF_REVISION=$(aws ecs register-task-definition --cli-input-json file://aws/task-defintion-prod.json > jq '.taskDefinition.revision')
+                        aws ecs update-service --cluster $AWS_ECS_CLUSTER --service $AWS_ECS_SERVICE --task-definition $AWS_ECS_TASK_DEFINTION:$LATEST_TASK_DEF_REVISION
+                        aws ecs wait services-stable --cluster $AWS_ECS_CLUSTER --services $AWS_ECS_SERVICE
+                    '''
+                }
+            }
+        }
+
+        /*
         stage('deploy prod') {
             agent {
                     docker {
@@ -105,5 +153,6 @@ pipeline {
                 '''
             }
         }
+        */
     }
 }
